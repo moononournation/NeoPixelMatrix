@@ -18,23 +18,23 @@
 
 uint16_t offset = 0;
 
-uint8_t getPixelColorFunction(uint8_t x, uint8_t y, uint8_t bgrIdx)
+uint8_t getPixelColorFunction(uint16_t x, uint8_t y, uint8_t bgrIdx)
 {
-  uint16_t i = offset + x;
-  if (i > WIDTH)
+  x += offset;
+  if (x > WIDTH)
   {
-    i -= WIDTH;
+    x -= WIDTH;
   }
-  i *= HUE_SCALE;
-  i = 65535 - i; // reverse
+  x *= HUE_SCALE;
+  x = 65535 - x; // reverse
   switch (bgrIdx)
   {
   case 0: // Blue
-    return HSV2B(i, 255, BRIGHTNESS);
+    return HSV2B(x, 255, BRIGHTNESS);
   case 1: // Red
-    return HSV2R(i, 255, BRIGHTNESS);
+    return HSV2R(x, 255, BRIGHTNESS);
   default: // 2: Green
-    return HSV2G(i, 255, BRIGHTNESS);
+    return HSV2G(x, 255, BRIGHTNESS);
   }
 }
 
