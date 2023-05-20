@@ -1,6 +1,3 @@
-/*
-  https://github.com/moononournation/Font-Stuff
-*/
 const uint16_t numPixel = 240;
 const uint16_t hueScale = 65535 / numPixel;
 #define CHAR_GAP 1      // space for each character

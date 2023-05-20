@@ -1,6 +1,3 @@
-/*
-  https://github.com/moononournation/Font-Stuff
-*/
 #define WIDTH 54
 #define HEIGHT 8
 #define FONT_WIDTH 5
