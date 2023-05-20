@@ -94,8 +94,8 @@
 #define w_nop8 w_nop4 w_nop4
 #define w_nop16 w_nop8 w_nop8
 
-typedef uint8_t (*getPixelColor)(uint16_t, uint8_t);
-void inline ws2812_set_leds_func_ptr_mask(uint16_t datlen, getPixelColor getPixelColorPtr, uint8_t maskhi)
+typedef uint8_t (*getPixelColor)(uint8_t x, uint8_t y, uint8_t bgrIdx);
+void inline ws2812_set_leds_func_ptr_mask(uint8_t w, uint8_t h, getPixelColor getPixelColorPtr, uint8_t maskhi)
 {
   uint8_t curbyte, ctr, masklo;
   uint8_t sreg_prev;
@@ -108,12 +108,14 @@ void inline ws2812_set_leds_func_ptr_mask(uint16_t datlen, getPixelColor getPixe
   sreg_prev = SREG;
   cli();
 
-  for (uint16_t i = 0; i < datlen; i++)
+  for (uint16_t x = 0; x < w; ++x)
   {
+    for (uint16_t y = 0; y < h; ++y)
+    {
       uint8_t brg_idx = 3;
       while (brg_idx--)
       {
-        curbyte = getPixelColorPtr(i, brg_idx);
+        curbyte = getPixelColorPtr(x, y, brg_idx);
 
         asm volatile(
             "       ldi   %0,8  \n\t"
@@ -173,13 +175,14 @@ void inline ws2812_set_leds_func_ptr_mask(uint16_t datlen, getPixelColor getPixe
             : "=&d"(ctr)
             : "r"(curbyte), "I"(_SFR_IO_ADDR(ws2812_PORTREG)), "r"(maskhi), "r"(masklo));
       }
+    }
   }
   SREG = sreg_prev;
 }
 
-void ws2812_set_leds_func_ptr(uint16_t datlen, getPixelColor getPixelColorPtr)
+void ws2812_set_leds_func_ptr(uint8_t width, uint8_t height, getPixelColor getPixelColorPtr)
 {
-  ws2812_set_leds_func_ptr_mask(datlen, getPixelColorPtr, _BV(ws2812_pin));
+  ws2812_set_leds_func_ptr_mask(width, height, getPixelColorPtr, _BV(ws2812_pin));
 }
 
 #endif /* LIGHT_WS2812_H_ */
