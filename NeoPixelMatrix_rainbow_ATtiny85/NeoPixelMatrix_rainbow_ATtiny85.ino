@@ -3,6 +3,7 @@
 
 #define NUM_PIXEL (WIDTH * HEIGHT)
 #define HUE_SCALE (65535 / WIDTH)
+#define BRIGHTNESS 2 // 1 - 255
 
 #define SCORLL_DELAY 20 // ms
 #define ws2812_port B   // Data port
@@ -29,11 +30,11 @@ uint8_t getPixelColorFunction(uint8_t x, uint8_t y, uint8_t bgrIdx)
   switch (bgrIdx)
   {
   case 0: // Blue
-    return HSV2B(i, 255, 2);
+    return HSV2B(i, 255, BRIGHTNESS);
   case 1: // Red
-    return HSV2R(i, 255, 2);
+    return HSV2R(i, 255, BRIGHTNESS);
   default: // 2: Green
-    return HSV2G(i, 255, 2);
+    return HSV2G(i, 255, BRIGHTNESS);
   }
 }
 

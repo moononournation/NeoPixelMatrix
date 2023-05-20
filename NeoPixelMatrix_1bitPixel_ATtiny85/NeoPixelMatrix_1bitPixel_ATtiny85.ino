@@ -1,8 +1,13 @@
 #define WIDTH 54
 #define HEIGHT 8
+
+#define NUM_PIXEL (WIDTH * HEIGHT)
+#define HUE_SCALE (65535 / WIDTH)
+#define BRIGHTNESS 2 // 1 - 255
+
 #define FONT_WIDTH 5
 #define FONT_HEIGHT 8
-#define BITMAP_SIZE (((WIDTH * HEIGHT) + 7) / 8)
+#define BITMAP_SIZE ((NUM_PIXEL + 7) / 8)
 #define CHAR_GAP 1       // space for each character
 #define SCORLL_DELAY 100 // ms
 #define ws2812_port B    // Data port
@@ -50,29 +55,19 @@ void write_char(int8_t x, uint8_t c)
 uint8_t getPixelColorFunction(uint8_t idx, uint8_t bit_idx, uint8_t brg_idx)
 {
   uint8_t bit_mask;
-  // if ((idx < 24) && (idx % 2))
-  // {
-  //   bit_mask = (0b00000001 << bit_idx);
-  // }
-  // else
-  // {
-    bit_mask = (0b10000000 >> bit_idx);
-  // }
+  bit_mask = (0b10000000 >> bit_idx);
   if (bitmap[idx] & bit_mask)
   { // check LED should on or off
     switch (brg_idx)
     {
     case 0: // Blue
-      return HSV2B((uint16_t)idx * (65535 / WIDTH), 255, 2);
-      //        return 7 - bit_idx;
+      return HSV2B((uint16_t)idx * HUE_SCALE, 255, BRIGHTNESS);
       return 0;
     case 1: // Red
-      return HSV2R((uint16_t)idx * (65535 / WIDTH), 255, 2);
-      //        return bit_idx;
+      return HSV2R((uint16_t)idx * HUE_SCALE, 255, BRIGHTNESS);
       return 0;
     default: // 2: Green
-      return HSV2G((uint16_t)idx * (65535 / WIDTH), 255, 2);
-      //        return idx >> 3;
+      return HSV2G((uint16_t)idx * HUE_SCALE, 255, BRIGHTNESS);
       return 0;
     }
   }
