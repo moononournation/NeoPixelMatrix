@@ -1,8 +1,8 @@
 #define WIDTH 20
 #define HEIGHT 5
 
-#define PIXEL_POWER_PIN 0
-#define BTN_PIN 2
+#define PIXEL_POWER_PIN 4
+// #define BTN_PIN 3
 
 #define NUM_PIXEL (WIDTH * HEIGHT)
 #define HUE_SHIFT 10
@@ -23,6 +23,9 @@
 
 #include "hsv2rgb.h"
 #include "light_ws2812_1bitPixel.h"
+
+#include "RTClib.h"
+RTC_DS3231 rtc;
 
 #include <avr/interrupt.h>
 #include <avr/sleep.h>
@@ -128,6 +131,11 @@ void setup()
 
   // init pin
   DDRB |= _BV(ws2812_pin);
+
+  rtc.begin();
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // we don't need the 32K Pin, so disable it
+  rtc.disable32K();
 }
 
 void loop()
@@ -135,10 +143,12 @@ void loop()
   if (millis() < 5000)
   {
     clearBitmap();
-    for (uint8_t i = 0; i < (sizeof(msg) - 1); i++)
-    {
-      write_char((i * (FONT_WIDTH + CHAR_GAP)), msg[i]);
-    }
+    DateTime now = rtc.now();
+    write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
+    write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
+    write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
+    write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
+    write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
 
     ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
 
