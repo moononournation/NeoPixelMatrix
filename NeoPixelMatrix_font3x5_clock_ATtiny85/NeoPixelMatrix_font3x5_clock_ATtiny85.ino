@@ -2,7 +2,7 @@
 #define HEIGHT 5
 
 #define PIXEL_POWER_PIN 4
-// #define BTN_PIN 3
+#define BTN_PIN 3
 
 #define NUM_PIXEL (WIDTH * HEIGHT)
 #define HUE_SHIFT 10
@@ -33,14 +33,20 @@ RTC_DS3231 rtc;
 uint16_t hue_offset = 0;
 uint8_t bitmap[BITMAP_BYTE_SIZE]; // ATtiny13A only have space to store mono
 
-char msg[] = "22:13";
+enum run_mode
+{
+  WATCH_MODE,
+  RAINBOW_MODE
+};
+unsigned long sleep_time;
+uint8_t mode = WATCH_MODE;
 
-void clearBitmap()
+void fill_bitmap(int v)
 {
   uint8_t idx = BITMAP_BYTE_SIZE;
   while (idx--)
   {
-    bitmap[idx] = 0x00;
+    bitmap[idx] = v;
   }
 }
 
@@ -113,60 +119,112 @@ uint8_t getPixelColorFunction(int16_t x, int16_t y, int16_t idx, uint8_t bit_mas
   }
 }
 
-void wake()
+ISR(PCINT0_vect) // this is the Interrupt Service Routine
 {
+  if (digitalRead(BTN_PIN) == LOW)
+  {
+    if (mode == WATCH_MODE)
+    {
+      mode = RAINBOW_MODE;
+    }
+    else
+    {
+      mode = WATCH_MODE;
+
+      sleep_time = millis() + 5000;
+    }
+  }
+}
+
+void sleep()
+{
+  GIMSK |= _BV(PCIE);                  // Enable Pin Change Interrupts
+  PCMSK |= _BV(PCINT3);                // Use PB3 as interrupt pin
+  ADCSRA &= ~_BV(ADEN);                // ADC off
+  set_sleep_mode(SLEEP_MODE_PWR_DOWN); // replaces above statement
+
+  sleep_enable(); // Sets the Sleep Enable bit in the MCUCR Register (SE BIT)
+  sei();          // Enable interrupts
+  sleep_cpu();    // sleep
+
+  cli();                 // Disable interrupts
+  PCMSK &= ~_BV(PCINT3); // Turn off PB3 as interrupt pin
+  sleep_disable();       // Clear SE bit
+  ADCSRA |= _BV(ADEN);   // ADC on
+
+  sei(); // Enable interrupts
+}
+
+void enable_btn()
+{
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  PCMSK |= bit(PCINT3);
+  GIFR |= bit(PCIF);  // clear any outstanding interrupts
+  GIMSK |= bit(PCIE); // enable pin change interrupts
 }
 
 void setup()
 {
-#ifdef PIXEL_POWER_PIN
   pinMode(PIXEL_POWER_PIN, OUTPUT);
   digitalWrite(PIXEL_POWER_PIN, HIGH);
-#endif
-
-#ifdef BTN_PIN
-  pinMode(BTN_PIN, INPUT_PULLUP);
-  attachInterrupt(BTN_PIN, wake, FALLING);
-#endif
 
   // init pin
   DDRB |= _BV(ws2812_pin);
 
+  enable_btn();
+
   rtc.begin();
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   // we don't need the 32K Pin, so disable it
   rtc.disable32K();
+
+  sleep_time = millis() + 5000;
 }
 
 void loop()
 {
-  if (millis() < 5000)
+  if (mode == WATCH_MODE)
   {
-    clearBitmap();
-    DateTime now = rtc.now();
-    write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
-    write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
-    write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
-    write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
-    write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
-
-    ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
-
-    --hue_offset;
-    if (hue_offset == 0)
+    if (millis() < sleep_time)
     {
-      hue_offset = HUE_OFFSET_LIMIT;
+      fill_bitmap(0x00);
+      DateTime now = rtc.now();
+      write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
+      write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
+      write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
+      write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
+      write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
+
+      ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
     }
+    else
+    {
+      pinMode(ws2812_pin, INPUT);
+      pinMode(PIXEL_POWER_PIN, INPUT);
 
-    _delay_ms(SCORLL_DELAY);
+      sleep();
+
+      enable_btn();
+
+      pinMode(PIXEL_POWER_PIN, OUTPUT);
+      digitalWrite(PIXEL_POWER_PIN, HIGH);
+
+      mode = WATCH_MODE;
+
+      sleep_time = millis() + 5000;
+    }
   }
-  else
+  else if (mode == RAINBOW_MODE)
   {
-    pinMode(ws2812_pin, INPUT);
-    pinMode(PIXEL_POWER_PIN, INPUT);
-
-    sleep_enable();
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-    sleep_cpu();
+    fill_bitmap(0xFF);
+    ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
   }
+
+  --hue_offset;
+  if (hue_offset == 0)
+  {
+    hue_offset = HUE_OFFSET_LIMIT;
+  }
+
+  _delay_ms(SCORLL_DELAY);
 }
