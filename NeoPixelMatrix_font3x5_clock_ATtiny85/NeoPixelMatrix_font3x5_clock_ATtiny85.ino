@@ -35,11 +35,12 @@ uint8_t bitmap[BITMAP_BYTE_SIZE]; // ATtiny13A only have space to store mono
 
 enum run_mode
 {
-  WATCH_MODE,
+  TIME_MODE,
+  DATE_MODE,
   RAINBOW_MODE
 };
 unsigned long sleep_time;
-uint8_t mode = WATCH_MODE;
+uint8_t mode = TIME_MODE;
 
 void fill_bitmap(int v)
 {
@@ -123,13 +124,19 @@ ISR(PCINT0_vect) // this is the Interrupt Service Routine
 {
   if (digitalRead(BTN_PIN) == LOW)
   {
-    if (mode == WATCH_MODE)
+    if (mode == TIME_MODE)
+    {
+      mode = DATE_MODE;
+
+      sleep_time = millis() + 5000;
+    }
+    else if (mode == DATE_MODE)
     {
       mode = RAINBOW_MODE;
     }
     else
     {
-      mode = WATCH_MODE;
+      mode = TIME_MODE;
 
       sleep_time = millis() + 5000;
     }
@@ -183,17 +190,30 @@ void setup()
 
 void loop()
 {
-  if (mode == WATCH_MODE)
+  if ((mode == TIME_MODE) || (mode == DATE_MODE))
   {
     if (millis() < sleep_time)
     {
+      
       fill_bitmap(0x00);
       DateTime now = rtc.now();
-      write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
-      write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
-      write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
-      write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
-      write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
+
+      if (mode == TIME_MODE)
+      {
+        write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
+        write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
+        write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
+        write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
+        write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
+      }
+      else if (mode == DATE_MODE)
+      {
+        write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() / 10));
+        write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() % 10));
+        write_char(2 * (FONT_WIDTH + CHAR_GAP), '/');
+        write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() / 10));
+        write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() % 10));
+      }
 
       ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
     }
@@ -209,7 +229,7 @@ void loop()
       pinMode(PIXEL_POWER_PIN, OUTPUT);
       digitalWrite(PIXEL_POWER_PIN, HIGH);
 
-      mode = WATCH_MODE;
+      mode = TIME_MODE;
 
       sleep_time = millis() + 5000;
     }
