@@ -1,3 +1,10 @@
+/*******************************************************************************
+ * Arduino IDE Settings for this project
+ * Board: "ATtiny25/45/85 (No bootloader)"
+ * Chip: "ATtiny85"
+ * Clock Source (Only set on Bootload): "16 MHz (PLL)""
+ ******************************************************************************/
+
 #define WIDTH 20
 #define HEIGHT 5
 
