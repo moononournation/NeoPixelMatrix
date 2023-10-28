@@ -44,10 +44,13 @@ enum run_mode
 {
   TIME_MODE,
   DATE_MODE,
-  RAINBOW_MODE
+  RAINBOW_MODE,
+  EMOJI_MODE
 };
 unsigned long sleep_time;
+unsigned long next_scroll_time;
 uint8_t mode = TIME_MODE;
+int16_t x_offset;
 
 void fill_bitmap(int v)
 {
@@ -127,6 +130,27 @@ uint8_t getPixelColorFunction(int16_t x, int16_t y, int16_t idx, uint8_t bit_mas
   }
 }
 
+uint8_t getOrangeFunction(int16_t x, int16_t y, int16_t idx, uint8_t bit_mask, uint8_t bgrIdx)
+{
+  // check LED should on or off
+  if (bitmap[idx] & bit_mask)
+  {
+    switch (bgrIdx)
+    {
+    case 0: // Blue
+      return 0;
+    case 1: // Red
+      return BRIGHTNESS;
+    default: // 2: Green
+      return BRIGHTNESS / 2;
+    }
+  }
+  else // LED off
+  {
+    return 0;
+  }
+}
+
 ISR(PCINT0_vect) // this is the Interrupt Service Routine
 {
   if (digitalRead(BTN_PIN) == LOW)
@@ -135,17 +159,31 @@ ISR(PCINT0_vect) // this is the Interrupt Service Routine
     {
       mode = DATE_MODE;
 
-      sleep_time = millis() + 5000;
+      sleep_time = millis() + 5000; // 5 seconds
     }
     else if (mode == DATE_MODE)
     {
       mode = RAINBOW_MODE;
+
+      sleep_time = millis() + 300000; // 5 minutes
+    }
+    else if (mode == RAINBOW_MODE)
+    {
+      mode = EMOJI_MODE;
+      x_offset = 0;
+      next_scroll_time = millis();
+
+      sleep_time = millis() + 300000; // 5 minutes
+    }
+    else if (mode == EMOJI_MODE)
+    {
+      sleep_time = millis() + 200; // 0.2 seconds delay power off
     }
     else
     {
       mode = TIME_MODE;
 
-      sleep_time = millis() + 5000;
+      sleep_time = millis() + 5000; // 5 seconds
     }
   }
 }
@@ -177,6 +215,23 @@ void enable_btn()
   GIMSK |= bit(PCIE); // enable pin change interrupts
 }
 
+void enter_sleep_mode()
+{
+  pinMode(ws2812_pin, INPUT);
+  pinMode(PIXEL_POWER_PIN, INPUT);
+
+  sleep();
+
+  enable_btn();
+
+  pinMode(PIXEL_POWER_PIN, OUTPUT);
+  digitalWrite(PIXEL_POWER_PIN, HIGH);
+
+  mode = TIME_MODE;
+
+  sleep_time = millis() + 5000; // 5 seconds
+}
+
 void setup()
 {
   pinMode(PIXEL_POWER_PIN, OUTPUT);
@@ -192,59 +247,73 @@ void setup()
   // we don't need the 32K Pin, so disable it
   rtc.disable32K();
 
-  sleep_time = millis() + 5000;
+  sleep_time = millis() + 5000; // 5 seconds
 }
 
 void loop()
 {
-  if ((mode == TIME_MODE) || (mode == DATE_MODE))
+  if (millis() > sleep_time)
   {
-    if (millis() < sleep_time)
+    enter_sleep_mode();
+  }
+  else if ((mode == TIME_MODE) || (mode == DATE_MODE))
+  {
+    fill_bitmap(0x00);
+    DateTime now = rtc.now();
+
+    if (mode == TIME_MODE)
     {
-      
-      fill_bitmap(0x00);
-      DateTime now = rtc.now();
-
-      if (mode == TIME_MODE)
-      {
-        write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
-        write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
-        write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
-        write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
-        write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
-      }
-      else if (mode == DATE_MODE)
-      {
-        write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() / 10));
-        write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() % 10));
-        write_char(2 * (FONT_WIDTH + CHAR_GAP), '/');
-        write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() / 10));
-        write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() % 10));
-      }
-
-      ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
+      write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() / 10));
+      write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.hour() % 10));
+      write_char(2 * (FONT_WIDTH + CHAR_GAP), ':');
+      write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() / 10));
+      write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.minute() % 10));
     }
-    else
+    else if (mode == DATE_MODE)
     {
-      pinMode(ws2812_pin, INPUT);
-      pinMode(PIXEL_POWER_PIN, INPUT);
-
-      sleep();
-
-      enable_btn();
-
-      pinMode(PIXEL_POWER_PIN, OUTPUT);
-      digitalWrite(PIXEL_POWER_PIN, HIGH);
-
-      mode = TIME_MODE;
-
-      sleep_time = millis() + 5000;
+      write_char(0 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() / 10));
+      write_char(1 * (FONT_WIDTH + CHAR_GAP), '0' + (now.day() % 10));
+      write_char(2 * (FONT_WIDTH + CHAR_GAP), '/');
+      write_char(3 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() / 10));
+      write_char(4 * (FONT_WIDTH + CHAR_GAP), '0' + (now.month() % 10));
     }
+
+    ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
   }
   else if (mode == RAINBOW_MODE)
   {
     fill_bitmap(0xFF);
     ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getPixelColorFunction);
+  }
+  else if (mode == EMOJI_MODE)
+  {
+    fill_bitmap(0x00);
+
+    if (x_offset & 1)
+    {
+      write_char(x_offset + (0 * (FONT_WIDTH + CHAR_GAP)), '>');
+      write_char(x_offset + (1 * (FONT_WIDTH + CHAR_GAP)), '.');
+      write_char(x_offset + (2 * (FONT_WIDTH + CHAR_GAP)), '<');
+    }
+    else
+    {
+      write_char(x_offset + (0 * (FONT_WIDTH + CHAR_GAP)), '=');
+      write_char(x_offset + (1 * (FONT_WIDTH + CHAR_GAP)), '.');
+      write_char(x_offset + (2 * (FONT_WIDTH + CHAR_GAP)), '=');
+    }
+
+    ws2812_set_leds_func_ptr(WIDTH, HEIGHT, getOrangeFunction);
+
+    if (millis() > next_scroll_time)
+    {
+      x_offset++;
+      if (x_offset > WIDTH)
+      {
+        x_offset = -WIDTH;
+      }
+
+      next_scroll_time = millis() + 250;
+    }
   }
 
   --hue_offset;
